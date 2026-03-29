@@ -193,6 +193,8 @@ def main() -> None:
                         help="Start immediately without waiting for sunset.")
     parser.add_argument("--interval", type=float, default=30, metavar="MINUTES",
                         help="Minutes between light changes (default: 30).")
+    parser.add_argument("--jitter", type=float, default=5, metavar="MINUTES",
+                        help="Random ± jitter added to interval (default: 5).")
     args = parser.parse_args()
 
     log("Discovering lights from Home Assistant…")
@@ -220,7 +222,7 @@ def main() -> None:
             f"--now: starting immediately (sunset is actually {fetch_sunset().strftime('%H:%M')}, active until {ACTIVE_END:02d}:00)")
     else:
         log(f"Sunset today: {sunset.strftime('%H:%M')} — lights active until {ACTIVE_END:02d}:00")
-    log(f"Interval: {args.interval}m")
+    log(f"Interval: {args.interval}m (±{args.jitter}m jitter)")
 
     current_on: set[str] = set()
     last_date = datetime.now().date()
@@ -234,10 +236,12 @@ def main() -> None:
                 log(f"New day — sunset updated to {sunset.strftime('%H:%M')}")
 
             current_on = cycle(current_on, lights, sunset, args.dry_run)
+            jitter = random.uniform(-args.jitter, args.jitter) * 60
+            sleep_seconds = max(60, interval_seconds + jitter)
             next_change = datetime.fromtimestamp(
-                time.time() + interval_seconds).strftime("%H:%M:%S")
-            log(f"Next change at {next_change}. Press Ctrl+C to stop.")
-            time.sleep(interval_seconds)
+                time.time() + sleep_seconds).strftime("%H:%M:%S")
+            log(f"Next change at {next_change} ({sleep_seconds / 60:.1f}m). Press Ctrl+C to stop.")
+            time.sleep(sleep_seconds)
     except KeyboardInterrupt:
         log("Stopping — turning all lights off.")
         for entity in current_on:
