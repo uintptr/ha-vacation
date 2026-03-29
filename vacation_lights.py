@@ -133,11 +133,18 @@ def turn_on(entity: str, brightness: int, dry_run: bool) -> None:
 
 def fetch_sunset() -> datetime:
     """Return today's sunset time as a local-timezone-aware datetime."""
+    from datetime import timedelta
     raw = subprocess.run(
         ["hacli", "template", "{{ state_attr('sun.sun', 'next_setting') }}"],
         capture_output=True, text=True,
     ).stdout.strip()
-    return datetime.fromisoformat(raw).astimezone()
+    sunset = datetime.fromisoformat(raw).astimezone()
+    # next_setting is always the *next* upcoming sunset — if it's tomorrow
+    # (because today's sunset has already passed), roll back one day.
+    now = datetime.now().astimezone()
+    if sunset.date() > now.date():
+        sunset -= timedelta(days=1)
+    return sunset
 
 
 def is_active(sunset: datetime) -> bool:
